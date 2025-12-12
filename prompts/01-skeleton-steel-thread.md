@@ -8,7 +8,7 @@ This is a walking skeleton - the simplest possible implementation that exercises
 
 - Initialize Cargo project with minimal dependencies
 - Set up basic project structure
-- Implement MCP server with stdio transport using rust-mcp-sdk
+- Implement MCP server with stdio transport using **rmcp** (official Rust MCP SDK)
 - Register ONE tool: `get_sdkman_version` (fully implemented, not a stub)
 - Set up basic logging with tracing
 - Server starts, responds to MCP protocol messages, and shuts down gracefully
@@ -125,6 +125,7 @@ For this steel thread:
 
 ## Extra Considerations
 
+- **CRITICAL**: Use `rmcp` (official SDK from modelcontextprotocol/rust-sdk), NOT `rust-mcp-sdk` (outdated community fork)
 - Use `tracing` for structured logging (not println!)
 - Error types use `thiserror`
 - Serialize/deserialize with `serde` and `serde_json`
@@ -151,7 +152,7 @@ For this steel thread:
 ## Implementation Notes
 
 **For Rust:**
-- Use `rust-mcp-sdk` for MCP protocol
+- Use `rmcp` (official MCP SDK) with `#[tool]` and `#[tool_router]` macros
 - Error handling with `Result<T, Error>` and thiserror
 - Async runtime: Tokio
 - Serialization: serde and serde_json
@@ -171,15 +172,39 @@ sdkman-mcp-server/
 **Key Dependencies (Cargo.toml):**
 ```toml
 [dependencies]
-rust-mcp-sdk = { version = "0.2", features = ["server"] }
+rmcp = "0.11"  # Check crates.io for latest version
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.0", features = ["full"] }
 
 [dev-dependencies]
 tempfile = "3.8"
+```
+
+**Example Tool Implementation:**
+```rust
+use rmcp::{ErrorData as McpError, model::*, tool_router};
+
+#[derive(Clone)]
+pub struct SdkmanServer {
+    tool_router: ToolRouter<Self>,
+}
+
+#[tool_router]
+impl SdkmanServer {
+    fn new() -> Self {
+        Self { tool_router: Self::tool_router() }
+    }
+
+    #[tool(description = "Get SDKMAN! script and native version numbers")]
+    async fn get_sdkman_version(&self) -> Result<CallToolResult, McpError> {
+        let version = SdkmanVersion::read_from_filesystem()?;
+        Ok(CallToolResult::success(vec![Content::text(version.format())]))
+    }
+}
 ```
 
 ## Specification by Example
