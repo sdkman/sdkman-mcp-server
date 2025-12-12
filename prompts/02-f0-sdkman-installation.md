@@ -171,6 +171,12 @@ pub struct InstallationResult {
 - Installation is idempotent - safe to call multiple times
 - Network failures should provide retry guidance
 - Platform-specific handling delegated to official installer (Linux, macOS, Git Bash, WSL)
+- Keep platform detection at **it's barest minimum**: we only care about Windows detection (CMD/Posh)
+- When detecting an existing installation, report back with **both** script and native versions
+- Before installation, **check if the rc files are readonly**, like on NixOS and use appropriate installation method with `rc_update` flag
+- Inform the user if the rc files could not be updated
+- Always select correct rc file method so that we don't cause failures!
+- 
 
 ## Testing Considerations
 
