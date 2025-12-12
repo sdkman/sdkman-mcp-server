@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::debug;
 
+//TODO: rename the file to versions.rs the sdkman_ file prefix is redundant becauase
+//      all the commands will have this prefix
+
 /// SDKMAN! version information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SdkmanVersion {
@@ -16,6 +19,9 @@ impl SdkmanVersion {
         let home_dir = std::env::var("HOME")
             .map_err(|e| SdkmanError::Internal(format!("Failed to get HOME directory: {}", e)))?;
 
+        //TODO: consider the $SDKMAN_DIR environment variable for alternate installation
+        //      locations. this allows users to install SDKMAN in locations other than ~/.sdkman
+        //      use the new helpsrs like get_sdkman_dir if needed
         let script_version_path = PathBuf::from(&home_dir).join(".sdkman/var/version");
         let native_version_path = PathBuf::from(&home_dir).join(".sdkman/var/version_native");
 
