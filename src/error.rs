@@ -16,13 +16,3 @@ pub enum SdkmanError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
-
-impl SdkmanError {
-    /// Convert to MCP error code
-    pub fn error_code(&self) -> i32 {
-        match self {
-            SdkmanError::NotInstalled { .. } => SDKMAN_NOT_INSTALLED_CODE,
-            SdkmanError::Internal(_) | SdkmanError::Io(_) => INTERNAL_ERROR_CODE,
-        }
-    }
-}
