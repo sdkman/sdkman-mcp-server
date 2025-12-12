@@ -1,3 +1,21 @@
+# MCP Server Prompt Template
+
+## How to Use This Template
+
+1. Copy this file to create a new prompt (e.g., `01-my-feature.md`)
+2. Replace `[MCP Server Name]` with your feature name
+3. Fill in only the sections you need - delete unused sections
+4. Replace *italic placeholder text* with concise, specific content
+5. Keep descriptions brief to minimize context window usage
+6. Focus on requirements, schemas, and examples - skip verbose explanations
+7. Use the completed prompt to guide implementation
+
+---
+
+## TEMPLATE BEGINS BELOW
+
+---
+
 # [MCP Server Name]
 
 *Write a brief paragraph describing the high-level purpose and context of this MCP server. What problem does it solve? What capabilities does it provide to LLM applications? What external systems or data sources does it integrate with? Keep this concise and focused on the "why" rather than the "how".*
