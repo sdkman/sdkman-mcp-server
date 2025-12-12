@@ -2,6 +2,7 @@
 name = "sdkman-mcp-server"
 version = "0.0.1"
 edition = "2021"
+license = "Apache-2.0"
 
 [dependencies]
 rmcp = { version = "0.11", features = ["transport-io"] }
