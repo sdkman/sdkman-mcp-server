@@ -49,7 +49,7 @@ This will give users clear feedback about whether they need to manually update t
 
 ### Task 3: Refactor Helper Functions to Common Library Modules
 
-- [ ] Move reusable helper functions from installation.rs to shared lib modules
+- [x] Move reusable helper functions from installation.rs to shared lib modules
 
 **Prompt**: Refactor the installation-specific helper functions into reusable library modules for better code organization and potential reuse across features.
 

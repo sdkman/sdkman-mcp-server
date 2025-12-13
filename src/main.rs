@@ -1,5 +1,8 @@
 mod error;
+mod fs_helpers;
 mod installation;
+mod platform;
+mod shell;
 mod versions;
 
 use error::{

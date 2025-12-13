@@ -1,4 +1,7 @@
 use crate::error::SdkmanError;
+use crate::fs_helpers::get_sdkman_dir;
+use crate::platform::check_platform_compatibility;
+use crate::shell::{check_rc_files_readonly, detect_shell};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -126,6 +129,9 @@ impl SdkmanInstallation {
         verify_installation(&installation.dir).await?;
 
         // 7. Return result with paths and instructions
+        // Note: SDKMAN! officially supports bash and zsh. The detect_shell() function will
+        // return the detected shell name, but SDKMAN! initialization works via sourcing
+        // .bashrc/.zshrc, so only POSIX-compatible shells that source these files will work.
         let message = if can_update_rc {
             let shell = detect_shell();
             format!(
@@ -160,25 +166,6 @@ impl SdkmanInstallation {
             rc_files_updated: can_update_rc,
         })
     }
-}
-
-//TODO: consider moving this to a common `lib`` module
-//      as this is reusable code
-/// Get SDKMAN! directory from environment or default
-pub fn get_sdkman_dir() -> PathBuf {
-    if let Ok(sdkman_dir) = env::var("SDKMAN_DIR") {
-        // Validate to prevent path traversal
-        let path = PathBuf::from(&sdkman_dir);
-        if path.is_absolute() && !sdkman_dir.contains("..") {
-            return path;
-        }
-        warn!("Invalid SDKMAN_DIR environment variable, using default");
-    }
-
-    // Default to ~/.sdkman
-    dirs::home_dir()
-        .expect("Unable to determine home directory")
-        .join(".sdkman")
 }
 
 /// Read version from SDKMAN! metadata
@@ -217,86 +204,6 @@ async fn read_version_from_metadata(dir: &Path) -> Result<SdkmanVersions, Sdkman
         script_version,
         native_version,
     })
-}
-
-//TODO: consider moving this to a common platform helper in the lib module
-/// Check platform compatibility - reject native Windows
-async fn check_platform_compatibility() -> Result<(), SdkmanError> {
-    // Check if we're on Windows OS
-    if cfg!(target_os = "windows") {
-        // Check if we have bash available (Git Bash or WSL)
-        let has_bash = Command::new("bash")
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .await
-            .is_ok();
-
-        if !has_bash {
-            return Err(SdkmanError::UnsupportedPlatform {
-                details: "SDKMAN! requires a Unix-like environment with bash shell".to_string(),
-                recovery: "Please use one of these supported environments:\n• Windows Subsystem for Linux (WSL) - Recommended: https://docs.microsoft.com/en-us/windows/wsl/install\n• Git Bash for Windows: https://gitforwindows.org/\n\nAlternatively, use SDKMAN! on Linux or macOS.".to_string(),
-            });
-        }
-    }
-
-    Ok(())
-}
-
-/// Check if shell RC files are read-only (e.g., NixOS)
-async fn check_rc_files_readonly() -> bool {
-    let home = match dirs::home_dir() {
-        Some(h) => h,
-        None => return false,
-    };
-
-    // Check common RC files
-    let rc_files = vec![".bashrc", ".zshrc", ".bash_profile", ".profile"];
-
-    for rc_file in rc_files {
-        let path = home.join(rc_file);
-        if path.exists() {
-            // Check both the symlink and its target (for NixOS)
-            // Use symlink_metadata to check the symlink itself
-            if let Ok(symlink_meta) = fs::symlink_metadata(&path).await {
-                if symlink_meta.is_symlink() {
-                    // For symlinks, check the target's permissions
-                    if let Ok(target_meta) = fs::metadata(&path).await {
-                        if target_meta.permissions().readonly() {
-                            debug!(
-                                "RC file {} is a symlink to read-only target (e.g., NixOS)",
-                                path.display()
-                            );
-                            return true;
-                        }
-                    }
-                } else {
-                    // Regular file, check its permissions
-                    if symlink_meta.permissions().readonly() {
-                        debug!("RC file {} is read-only", path.display());
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    false
-}
-
-//TODO: move to shell ops helper in lib module
-/// Detect current shell
-fn detect_shell() -> String {
-    env::var("SHELL")
-        .ok()
-        .and_then(|s| {
-            PathBuf::from(&s)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(String::from)
-        })
-        .unwrap_or_else(|| "bash".to_string())
 }
 
 /// Download installer script with retry logic
@@ -441,43 +348,4 @@ async fn verify_installation(dir: &Path) -> Result<(), SdkmanError> {
 
     info!("Installation verification successful");
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    //TODO: move with associated sdkman dir helper
-    #[test]
-    fn test_get_sdkman_dir_default() {
-        env::remove_var("SDKMAN_DIR");
-        let dir = get_sdkman_dir();
-        assert!(dir.ends_with(".sdkman"));
-    }
-
-    //TODO: move with associated sdkman dir helper
-    #[test]
-    fn test_get_sdkman_dir_from_env() {
-        let test_dir = "/tmp/test-sdkman";
-        env::set_var("SDKMAN_DIR", test_dir);
-        let dir = get_sdkman_dir();
-        assert_eq!(dir.display().to_string(), test_dir);
-        env::remove_var("SDKMAN_DIR");
-    }
-
-    //TODO: move with associated sdkman dir helper
-    #[test]
-    fn test_get_sdkman_dir_rejects_traversal() {
-        env::set_var("SDKMAN_DIR", "/tmp/../etc/passwd");
-        let dir = get_sdkman_dir();
-        assert!(dir.ends_with(".sdkman")); // Should fall back to default
-        env::remove_var("SDKMAN_DIR");
-    }
-
-    //TODO: move alongside associated shell helper
-    #[test]
-    fn test_detect_shell() {
-        let shell = detect_shell();
-        assert!(!shell.is_empty());
-    }
 }
