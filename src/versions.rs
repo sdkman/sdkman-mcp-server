@@ -28,7 +28,7 @@ impl SdkmanVersion {
     /// Read version information from SDKMAN! filesystem
     pub fn read_from_filesystem() -> Result<Self, SdkmanError> {
         let sdkman_dir = get_sdkman_dir()?;
-        
+
         let script_version_path = sdkman_dir.join("var/version");
         let native_version_path = sdkman_dir.join("var/version_native");
 
@@ -107,7 +107,7 @@ mod tests {
         env::set_var("SDKMAN_DIR", custom_path);
 
         let result = get_sdkman_dir();
-        
+
         // Clean up
         env::remove_var("SDKMAN_DIR");
 
@@ -121,10 +121,10 @@ mod tests {
         env::remove_var("SDKMAN_DIR");
 
         let result = get_sdkman_dir();
-        
+
         assert!(result.is_ok());
         let path = result.unwrap();
-        
+
         // Should end with .sdkman
         assert!(path.to_string_lossy().ends_with(".sdkman"));
     }

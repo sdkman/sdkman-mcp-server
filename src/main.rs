@@ -11,10 +11,10 @@ use rmcp::{
     handler::server::tool::ToolRouter, model::*, tool, tool_handler, tool_router,
     transport::io::stdio, ErrorData as McpError, ServiceExt,
 };
-use versions::SdkmanVersion;
 use std::borrow::Cow;
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use versions::SdkmanVersion;
 
 #[derive(Clone)]
 pub struct SdkmanServer {
@@ -63,7 +63,9 @@ impl SdkmanServer {
         }
     }
 
-    #[tool(description = "Downloads and executes the official SDKMAN! installer script, creating the complete SDKMAN! environment with automatic shell configuration")]
+    #[tool(
+        description = "Downloads and executes the official SDKMAN! installer script, creating the complete SDKMAN! environment with automatic shell configuration"
+    )]
     async fn install_sdkman(&self) -> Result<CallToolResult, McpError> {
         info!("Tool call: install_sdkman");
 
@@ -91,7 +93,9 @@ impl SdkmanServer {
                         });
                         Err(McpError {
                             code: ErrorCode(UNSUPPORTED_PLATFORM_CODE),
-                            message: Cow::Borrowed("SDKMAN! installation not supported on native Windows"),
+                            message: Cow::Borrowed(
+                                "SDKMAN! installation not supported on native Windows",
+                            ),
                             data: Some(error_data),
                         })
                     }

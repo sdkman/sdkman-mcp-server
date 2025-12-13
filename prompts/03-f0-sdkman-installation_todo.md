@@ -9,7 +9,7 @@ Consider the following rules during execution of the tasks:
 
 ### Task 1: Add Support for Both Script and Native SDKMAN! Versions
 
-- [ ] Track both script and native versions in SdkmanInstallation struct and related code
+- [x] Track both script and native versions in SdkmanInstallation struct and related code
 
 **Prompt**: Update the SDKMAN! version tracking to support both script and native versions. Currently, the code only tracks the script version from `var/version`, but SDKMAN! also has a native version at `var/version_native`. 
 

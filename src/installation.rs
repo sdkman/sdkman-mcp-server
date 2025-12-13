@@ -1,7 +1,7 @@
 use crate::error::SdkmanError;
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::fs;
@@ -14,14 +14,29 @@ const DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAY_MS: u64 = 1000;
 
+/// SDKMAN! version information
+#[derive(Debug, Clone)]
+pub struct SdkmanVersions {
+    pub script_version: String,
+    pub native_version: Option<String>,
+}
+
+impl SdkmanVersions {
+    /// Format versions for display
+    pub fn display(&self) -> String {
+        match &self.native_version {
+            Some(native) => format!("script: {}, native: {}", self.script_version, native),
+            None => format!("script: {}", self.script_version),
+        }
+    }
+}
+
 /// Installation state representation
 #[derive(Debug, Clone)]
 pub struct SdkmanInstallation {
     pub dir: PathBuf,
     pub is_installed: bool,
-    //TODO: sdkman has two versions, script and native
-    //      this struct should make provision for both
-    pub version: Option<String>,
+    pub versions: Option<SdkmanVersions>,
 }
 
 /// Result of installation operation
@@ -43,7 +58,7 @@ impl SdkmanInstallation {
         let init_script = dir.join("bin/sdkman-init.sh");
         let is_installed = init_script.exists();
 
-        let version = if is_installed {
+        let versions = if is_installed {
             read_version_from_metadata(&dir).await.ok()
         } else {
             None
@@ -52,7 +67,7 @@ impl SdkmanInstallation {
         Ok(Self {
             dir,
             is_installed,
-            version,
+            versions,
         })
     }
 
@@ -69,15 +84,19 @@ impl SdkmanInstallation {
         // 2. Check if already installed
         let installation = Self::detect().await?;
         if installation.is_installed {
-            let version = installation.version.as_deref().unwrap_or("unknown");
+            let version_str = installation
+                .versions
+                .as_ref()
+                .map(|v| v.display())
+                .unwrap_or_else(|| "unknown".to_string());
             info!("SDKMAN! already installed at {:?}", installation.dir);
             return Ok(InstallationResult {
                 installed: true,
                 sdkman_dir: installation.dir.display().to_string(),
                 message: format!(
-                    "SDKMAN! is already installed at {} (version {})",
+                    "SDKMAN! is already installed at {} (version: {})",
                     installation.dir.display(),
-                    version
+                    version_str
                 ),
                 shell_restart_required: false,
             });
@@ -155,23 +174,41 @@ pub fn get_sdkman_dir() -> PathBuf {
 }
 
 /// Read version from SDKMAN! metadata
-async fn read_version_from_metadata(dir: &PathBuf) -> Result<String, SdkmanError> {
-    //TODO: this only extracts the script version. we should also extract the native version
-    //      which is found at `var/version_native`
-    let version_file = dir.join("var/version");
-    
-    //TODO: check for presence of both script and native version files
-    if version_file.exists() {
-        let content = fs::read_to_string(&version_file)
+async fn read_version_from_metadata(dir: &Path) -> Result<SdkmanVersions, SdkmanError> {
+    let script_version_file = dir.join("var/version");
+    let native_version_file = dir.join("var/version_native");
+
+    // Script version is required
+    let script_version = if script_version_file.exists() {
+        fs::read_to_string(&script_version_file)
             .await
-            .map_err(|e| SdkmanError::Internal(format!("Failed to read version file: {}", e)))?;
-        //TODO: return an sdkman versions struct that returns both script and native versions
-        Ok(content.trim().to_string())
+            .map(|content| content.trim().to_string())
+            .map_err(|e| {
+                SdkmanError::Internal(format!("Failed to read script version file: {}", e))
+            })?
     } else {
-        Err(SdkmanError::Internal(
-            "Version file not found".to_string(),
-        ))
-    }
+        return Err(SdkmanError::Internal(
+            "Script version file not found".to_string(),
+        ));
+    };
+
+    // Native version is optional
+    let native_version = if native_version_file.exists() {
+        match fs::read_to_string(&native_version_file).await {
+            Ok(content) => Some(content.trim().to_string()),
+            Err(e) => {
+                debug!("Failed to read native version file: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok(SdkmanVersions {
+        script_version,
+        native_version,
+    })
 }
 
 //TODO: consider moving this to a common platform helper in the lib module
@@ -283,9 +320,7 @@ async fn download_installer(url: &str) -> Result<String, SdkmanError> {
     let details = last_error.unwrap_or_else(|| "Unknown error".to_string());
     Err(SdkmanError::NetworkError {
         details: format!("Connection failed after {} attempts: {}", MAX_RETRIES, details),
-        recovery: format!(
-            "Check your internet connection and try again. Visit https://sdkman.io/install for manual installation or check service status at https://sdkman.io/status"
-        ),
+        recovery: "Check your internet connection and try again. Visit https://sdkman.io/install for manual installation or check service status at https://sdkman.io/status".to_string(),
     })
 }
 
@@ -310,11 +345,9 @@ async fn execute_installer(script: &str, update_rc_files: bool) -> Result<(), Sd
         cmd.env("SDKMAN_SKIP_RC", "true");
     }
 
-    let mut child = cmd.spawn().map_err(|e| {
-        SdkmanError::PermissionError {
-            details: format!("Failed to spawn bash process: {}", e),
-            recovery: "Ensure bash is installed and you have permission to execute it.".to_string(),
-        }
+    let mut child = cmd.spawn().map_err(|e| SdkmanError::PermissionError {
+        details: format!("Failed to spawn bash process: {}", e),
+        recovery: "Ensure bash is installed and you have permission to execute it.".to_string(),
     })?;
 
     // Write script to stdin
@@ -344,7 +377,9 @@ async fn execute_installer(script: &str, update_rc_files: bool) -> Result<(), Sd
         if stderr.contains("Permission denied") || stdout.contains("Permission denied") {
             return Err(SdkmanError::PermissionError {
                 details: "Insufficient permissions to install SDKMAN!".to_string(),
-                recovery: "Ensure you have write permissions to your home directory. Do not use sudo.".to_string(),
+                recovery:
+                    "Ensure you have write permissions to your home directory. Do not use sudo."
+                        .to_string(),
             });
         }
 
@@ -361,7 +396,7 @@ async fn execute_installer(script: &str, update_rc_files: bool) -> Result<(), Sd
 }
 
 /// Verify installation completed successfully
-async fn verify_installation(dir: &PathBuf) -> Result<(), SdkmanError> {
+async fn verify_installation(dir: &Path) -> Result<(), SdkmanError> {
     info!("Verifying SDKMAN! installation");
 
     let init_script = dir.join("bin/sdkman-init.sh");
@@ -428,3 +463,4 @@ mod tests {
         assert!(!shell.is_empty());
     }
 }
+
