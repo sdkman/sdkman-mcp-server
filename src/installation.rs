@@ -46,9 +46,7 @@ pub struct InstallationResult {
     pub sdkman_dir: String,
     pub message: String,
     pub shell_restart_required: bool,
-    //TODO: this struct should contain a field that
-    //      tracks if the rc files were updated
-    //      eg. bashrc, zshrc
+    pub rc_files_updated: bool,
 }
 
 impl SdkmanInstallation {
@@ -99,12 +97,13 @@ impl SdkmanInstallation {
                     version_str
                 ),
                 shell_restart_required: false,
+                rc_files_updated: false,
             });
         }
 
         // 3. Check if RC files are writable
         let rc_files_readonly = check_rc_files_readonly().await;
-        let should_update_rc = update_rc_files && !rc_files_readonly;
+        let can_update_rc = update_rc_files && !rc_files_readonly;
 
         if rc_files_readonly && update_rc_files {
             warn!("Shell RC files are read-only, will skip RC file updates");
@@ -115,13 +114,13 @@ impl SdkmanInstallation {
         let installer_script = download_installer(&install_url).await?;
 
         // 5. Execute with appropriate flags
-        execute_installer(&installer_script, should_update_rc).await?;
+        execute_installer(&installer_script, can_update_rc).await?;
 
         // 6. Verify installation succeeded
         verify_installation(&installation.dir).await?;
 
         // 7. Return result with paths and instructions
-        let message = if should_update_rc {
+        let message = if can_update_rc {
             let shell = detect_shell();
             format!(
                 "SDKMAN! installed successfully at {}. Shell configuration updated for {}. Please restart your terminal or run: source {}/bin/sdkman-init.sh",
@@ -149,7 +148,8 @@ impl SdkmanInstallation {
             installed: true,
             sdkman_dir: installation.dir.display().to_string(),
             message,
-            shell_restart_required: should_update_rc,
+            shell_restart_required: can_update_rc,
+            rc_files_updated: can_update_rc,
         })
     }
 }
@@ -463,4 +463,3 @@ mod tests {
         assert!(!shell.is_empty());
     }
 }
-

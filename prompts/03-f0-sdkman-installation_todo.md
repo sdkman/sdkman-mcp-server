@@ -29,7 +29,7 @@ The native version file may not always exist, so handle it gracefully. When disp
 
 ### Task 2: Add RC Files Update Tracking to InstallationResult
 
-- [ ] Add field to track whether RC files were updated during installation
+- [x] Add field to track whether RC files were updated during installation
 
 **Prompt**: Update the [`InstallationResult`](src/installation.rs:28) struct to include a field that tracks whether RC files (bashrc, zshrc, etc.) were updated during installation. 
 
@@ -37,10 +37,11 @@ Changes required:
 1. Add a new field `rc_files_updated: bool` to the `InstallationResult` struct
 2. Update the [`SdkmanInstallation::install()`](src/installation.rs:60) method to set this field based on whether RC files were actually updated (consider the `should_update_rc` variable)
 3. Update the tool schema documentation in [`prompts/02-f0-sdkman-installation_drive.md`](prompts/02-f0-sdkman-installation_drive.md:48) to include this new field in the output schema
-4. Update the "Specification by Example" section in the drive document to show the new field in all response examples
+4. **DO NOT** update the "Specification by Example" section in the drive document to show the new field in all response examples
 5. Ensure the field is properly serialized in the JSON output
 
 This will give users clear feedback about whether they need to manually update their RC files or if it was done automatically.
+**Something to consider**: the official installer will automatically attempt writing to these files based on the presence of the `rc_update` query parameter, but **could skip writing if the rc files already source the sdkman_init.sh from a past installatoin**.
 
 **Files affected**:
 - `src/installation.rs`

@@ -65,6 +65,10 @@ This feature enables first-time users to install SDKMAN! through the MCP server 
     "shell_restart_required": {
       "type": "boolean",
       "description": "Whether user needs to restart terminal or source init script"
+    },
+    "rc_files_updated": {
+      "type": "boolean",
+      "description": "Whether shell RC files (bashrc, zshrc, etc.) were updated during installation"
     }
   }
 }
