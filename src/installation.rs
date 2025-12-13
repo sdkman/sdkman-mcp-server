@@ -111,7 +111,13 @@ impl SdkmanInstallation {
 
         // 4. Download installer from https://get.sdkman.io
         let install_url = installer_url.unwrap_or_else(|| DEFAULT_INSTALLER_URL.to_string());
-        let installer_script = download_installer(&install_url).await?;
+        // Add rcupdate=false query parameter if we're not updating RC files
+        let install_url_with_params = if !can_update_rc {
+            format!("{}?rcupdate=false", install_url)
+        } else {
+            install_url
+        };
+        let installer_script = download_installer(&install_url_with_params).await?;
 
         // 5. Execute with appropriate flags
         execute_installer(&installer_script, can_update_rc).await?;
@@ -130,13 +136,15 @@ impl SdkmanInstallation {
             )
         } else if rc_files_readonly {
             format!(
-                "SDKMAN! installed successfully at {}. Shell RC files are read-only (e.g., NixOS). Add this to your shell profile manually: source {}/bin/sdkman-init.sh",
+                "SDKMAN! installed successfully at {}. Shell RC files are read-only (e.g., NixOS). Add this to your shell profile manually: [ -f {}/bin/sdkman-init.sh ] && source {}/bin/sdkman-init.sh",
+                installation.dir.display(),
                 installation.dir.display(),
                 installation.dir.display()
             )
         } else {
             format!(
-                "SDKMAN! installed successfully at {}. Shell RC files were not modified. Add this to your shell profile manually: source {}/bin/sdkman-init.sh",
+                "SDKMAN! installed successfully at {}. Shell RC files were not modified. Add this to your shell profile manually: [ -f {}/bin/sdkman-init.sh ] && source {}/bin/sdkman-init.sh",
+                installation.dir.display(),
                 installation.dir.display(),
                 installation.dir.display()
             )
@@ -249,15 +257,27 @@ async fn check_rc_files_readonly() -> bool {
     for rc_file in rc_files {
         let path = home.join(rc_file);
         if path.exists() {
-            // Try to check if file is writable
-            match fs::metadata(&path).await {
-                Ok(metadata) => {
-                    if metadata.permissions().readonly() {
+            // Check both the symlink and its target (for NixOS)
+            // Use symlink_metadata to check the symlink itself
+            if let Ok(symlink_meta) = fs::symlink_metadata(&path).await {
+                if symlink_meta.is_symlink() {
+                    // For symlinks, check the target's permissions
+                    if let Ok(target_meta) = fs::metadata(&path).await {
+                        if target_meta.permissions().readonly() {
+                            debug!(
+                                "RC file {} is a symlink to read-only target (e.g., NixOS)",
+                                path.display()
+                            );
+                            return true;
+                        }
+                    }
+                } else {
+                    // Regular file, check its permissions
+                    if symlink_meta.permissions().readonly() {
                         debug!("RC file {} is read-only", path.display());
                         return true;
                     }
                 }
-                Err(_) => continue,
             }
         }
     }
@@ -325,7 +345,7 @@ async fn download_installer(url: &str) -> Result<String, SdkmanError> {
 }
 
 /// Execute installer script
-async fn execute_installer(script: &str, update_rc_files: bool) -> Result<(), SdkmanError> {
+async fn execute_installer(script: &str, _update_rc_files: bool) -> Result<(), SdkmanError> {
     info!("Executing SDKMAN! installer script");
 
     // Prepare environment variables
@@ -340,10 +360,8 @@ async fn execute_installer(script: &str, update_rc_files: bool) -> Result<(), Sd
         cmd.env("SDKMAN_DIR", sdkman_dir);
     }
 
-    // Control RC file updates
-    if !update_rc_files {
-        cmd.env("SDKMAN_SKIP_RC", "true");
-    }
+    // Note: RC file update control is handled via rcupdate query parameter in the download URL
+    // See: https://sdkman.io/install/#install-without-modifying-shell-config
 
     let mut child = cmd.spawn().map_err(|e| SdkmanError::PermissionError {
         details: format!("Failed to spawn bash process: {}", e),
