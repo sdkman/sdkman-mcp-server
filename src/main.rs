@@ -1,12 +1,12 @@
 mod error;
-mod sdkman_version;
+mod versions;
 
 use error::{SdkmanError, INTERNAL_ERROR_CODE, SDKMAN_NOT_INSTALLED_CODE};
 use rmcp::{
     handler::server::tool::ToolRouter, model::*, tool, tool_handler, tool_router,
     transport::io::stdio, ErrorData as McpError, ServiceExt,
 };
-use sdkman_version::SdkmanVersion;
+use versions::SdkmanVersion;
 use std::borrow::Cow;
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
