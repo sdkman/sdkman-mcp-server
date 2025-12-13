@@ -114,6 +114,37 @@ Claude: "SDKMAN! Versions: Script: 5.18.2; Native: 0.4.6"
 - Returns error if SDKMAN! is not installed
 - Provides checked file paths in error response for troubleshooting
 
+### 🛠️ `install_sdkman`
+
+Downloads and executes the official SDKMAN! installer script, creating the complete SDKMAN! environment with automatic shell configuration.
+
+**Description**: Installs SDKMAN! on your system using the official installer from https://get.sdkman.io. This tool enables first-time users to set up SDKMAN! through natural language interaction with AI assistants.
+
+**Parameters**:
+- `update_rc_files` (optional, boolean, default: `true`): Whether to update shell RC files. Set to false to skip shell profile updates.
+
+**Example usage** (via Claude):
+```
+User: "Install SDKMAN! for me"
+Claude: [calls install_sdkman with default parameters]
+Claude: "SDKMAN! installed successfully at /home/user/.sdkman. Shell configuration updated for bash. Please restart your terminal or run: source /home/user/.sdkman/bin/sdkman-init.sh"
+```
+
+**Features**:
+- Automatic platform detection (supports Linux, macOS, WSL, Git Bash)
+- Rejects native Windows (CMD/PowerShell) with helpful guidance
+- Detects existing installations and skips if already installed
+- Handles read-only RC files (e.g., NixOS)
+- Respects `SDKMAN_DIR` environment variable
+- Network retry logic with exponential backoff
+- Installation verification
+
+**Error handling**:
+- Platform errors: Rejects native Windows with installation alternatives
+- Network errors: Provides retry guidance and fallback options
+- Permission errors: Clear instructions for resolution
+- Already installed: Returns success with version information
+
 ## Roadmap
 
 The following tools are planned for future releases (see [PRD](specs/PRD.md) for details):
@@ -124,8 +155,8 @@ The following tools are planned for future releases (see [PRD](specs/PRD.md) for
 - `list_versions` - List available versions for a candidate
 - `get_default_version` - Get recommended version for a candidate
 
-### Phase 2: Installation & Management (Coming Soon)
-- `install_sdkman` - Install SDKMAN! using the official installer
+### Phase 2: Installation & Management (Partial)
+- ✅ `install_sdkman` - Install SDKMAN! using the official installer
 - `install_candidate` - Install a specific SDK version
 - `uninstall_candidate` - Remove an SDK version
 - `set_default_version` - Set the default version for an SDK
@@ -137,7 +168,7 @@ The following tools are planned for future releases (see [PRD](specs/PRD.md) for
 - `get_candidate_home` - Get path to installed SDK
 - `get_sdkman_config` - Get SDKMAN! configuration settings
 
-**Target**: 15 total tools for v1.0 release
+**Progress**: 2/15 tools implemented | **Target**: 15 total tools for v1.0 release
 
 ## Development
 
@@ -177,7 +208,9 @@ Logs are written to stderr to avoid interfering with the stdio MCP transport.
 sdkman-mcp-server/
 ├── src/
 │   ├── main.rs              # MCP server implementation
-│   ├── sdkman_version.rs    # Version detection logic
+│   ├── lib.rs               # Library exports
+│   ├── installation.rs      # SDKMAN! installation logic
+│   ├── versions.rs          # Version detection logic
 │   └── error.rs             # Error types and handling
 ├── tests/                   # Integration tests
 ├── specs/                   # Product specifications
