@@ -171,12 +171,13 @@ pub struct InstallationResult {
 - Installation is idempotent - safe to call multiple times
 - Network failures should provide retry guidance
 - Platform-specific handling delegated to official installer (Linux, macOS, Git Bash, WSL)
-- Keep platform detection at **it's barest minimum**: we only care about Windows detection (CMD/Posh)
-- When detecting an existing installation, report back with **both** script and native versions
-- Before installation, **check if the rc files are readonly**, like on NixOS and use appropriate installation method with `rc_update` flag
-- Inform the user if the rc files could not be updated
-- Always select correct rc file method so that we don't cause failures!
-- 
+- Keep platform detection at **it's barest minimum**: we only care about Windows detection (CMD/Posh) now, will expand this later when needed
+- When detecting an existing installation, report **both** script and native versions
+- Before installation, **first check if the rc files are readonly** (NixOS): and use the appropriate installation method with `rc_update` flag
+- Inform the user if the rc files are not updated due to readonly permissions
+- Instruct the user how to remedy when rc files are readonly
+- Provide a way to override the rc file updating and apply correct `rc_update` flag on get.sdkman.io so that we don't cause failures!
+- Make the default install hook url overridable for testing
 
 ## Testing Considerations
 
@@ -193,14 +194,8 @@ pub struct InstallationResult {
 - Test installation with update_rc_files=false|true
 - Test partial installation detection and handling
 - Mock installer script execution for fast tests
-
-### End-to-End Tests
-- Test on Ubuntu 22.04 (x64)
-- Test on macOS 13+ (Intel and ARM64)
-- Test on Windows with Git Bash
-- Test on Windows with WSL
-- Verify shell integration works after installation
-- Test installation → list_candidates → install_candidate flow
+- Override install hook url with mock installer script location
+- Mock install hooks should create most essential directories
 
 ## Implementation Notes
 
