@@ -1,5 +1,7 @@
 # SDKMAN! MCP Server
 
+> **ALPHA STATUS**: This MCP server is currently in early alpha development with limited tooling available. The feature set will expand significantly over time. See the [roadmap](#roadmap) for planned features.
+
 An official [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for [SDKMAN!](https://sdkman.io), enabling AI assistants like Claude to manage Software Development Kits through natural language interactions.
 
 **Status**: Alpha v0.0.1 | **Progress**: 2/15 tools implemented
