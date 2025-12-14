@@ -89,6 +89,14 @@ Changes required:
    - Enhance [`test_platform_compatibility_macos()`](tests/install_sdkman_integration_tests.rs:92) to verify architecture detection on macOS
 6. Consider adding conditional compilation attributes (`#[cfg(target_arch = "aarch64")]` and `#[cfg(target_arch = "x86_64")]`) to run architecture-specific test assertions
 
+**IMPORTANT**: Only the following rust triple identifiers are alowed:
+* aarch64-unknown-linux-gnu
+* x86_64-unknown-linux-gnu
+* i686-unknown-linux-gnu
+* aarch64-apple-darwin
+* x86_64-apple-darwin
+* x86_64-pc-windows-msvc
+
 This lays the groundwork for potential future features that might need to behave differently based on architecture (e.g., downloading architecture-specific binaries).
 
 **Files affected**:

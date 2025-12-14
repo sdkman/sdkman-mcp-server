@@ -1,4 +1,4 @@
-use crate::error::SdkmanError;
+use crate::utils::error::SdkmanError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::debug;
@@ -85,6 +85,7 @@ impl SdkmanVersion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
 
     #[test]
@@ -101,6 +102,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_sdkman_dir_with_env_var() {
         // Set SDKMAN_DIR environment variable
         let custom_path = "/custom/sdkman/path";
@@ -116,6 +118,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_sdkman_dir_default_fallback() {
         // Ensure SDKMAN_DIR is not set
         env::remove_var("SDKMAN_DIR");

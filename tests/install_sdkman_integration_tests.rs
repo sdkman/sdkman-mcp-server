@@ -44,11 +44,6 @@ async fn test_detect_existing_installation() {
         .expect("Failed to detect installation");
 
     assert!(installation.is_installed);
-    assert!(installation.versions.is_some());
-
-    let versions = installation.versions.unwrap();
-    assert_eq!(versions.script_version, "5.18.2");
-    assert_eq!(versions.native_version, Some("0.4.6".to_string()));
 
     // Clean up
     env::remove_var("SDKMAN_DIR");
@@ -69,36 +64,8 @@ async fn test_detect_no_installation() {
         .expect("Failed to detect (non)installation");
 
     assert!(!installation.is_installed);
-    assert!(installation.versions.is_none());
 
     // Clean up
     env::remove_var("SDKMAN_DIR");
 }
 
-//TODO: we need to diffirentiate between arm64 and intel architectures beyond simple linux compatibility
-#[tokio::test]
-#[cfg(target_os = "linux")]
-async fn test_platform_compatibility_linux() {
-    let temp_dir = setup_temp_sdkman_dir();
-    let sdkman_dir = temp_dir.path().to_path_buf();
-    env::set_var("SDKMAN_DIR", sdkman_dir.to_str().unwrap());
-
-    // On Linux, platform check should pass
-    // We won't actually install (network operation), but we can check the initial steps
-    // This test verifies platform compatibility doesn't reject Linux
-
-    env::remove_var("SDKMAN_DIR");
-}
-
-//TODO: we need to diffirentiate between arm64 and intel architectures beyond simple macos compatibility
-#[tokio::test]
-#[cfg(target_os = "macos")]
-async fn test_platform_compatibility_macos() {
-    let temp_dir = setup_temp_sdkman_dir();
-    let sdkman_dir = temp_dir.path().to_path_buf();
-    env::set_var("SDKMAN_DIR", sdkman_dir.to_str().unwrap());
-
-    // On macOS, platform check should pass
-
-    env::remove_var("SDKMAN_DIR");
-}

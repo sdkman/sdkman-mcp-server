@@ -1,15 +1,13 @@
-use crate::error::SdkmanError;
-use crate::fs_helpers::get_sdkman_dir;
-use crate::platform::check_platform_compatibility;
-use crate::shell::{check_rc_files_readonly, detect_shell};
+use crate::utils::error::SdkmanError;
+use crate::utils::fs_helpers::get_sdkman_dir;
+use crate::utils::platform::{check_bash_available, check_platform_compatibility};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::fs;
 use tokio::process::Command;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 const DEFAULT_INSTALLER_URL: &str = "https://get.sdkman.io";
 const INSTALLER_TIMEOUT_SECS: u64 = 60;
@@ -17,29 +15,11 @@ const DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAY_MS: u64 = 1000;
 
-/// SDKMAN! version information
-#[derive(Debug, Clone)]
-pub struct SdkmanVersions {
-    pub script_version: String,
-    pub native_version: Option<String>,
-}
-
-impl SdkmanVersions {
-    /// Format versions for display
-    pub fn display(&self) -> String {
-        match &self.native_version {
-            Some(native) => format!("script: {}, native: {}", self.script_version, native),
-            None => format!("script: {}", self.script_version),
-        }
-    }
-}
-
 /// Installation state representation
 #[derive(Debug, Clone)]
 pub struct SdkmanInstallation {
     pub dir: PathBuf,
     pub is_installed: bool,
-    pub versions: Option<SdkmanVersions>,
 }
 
 /// Result of installation operation
@@ -49,7 +29,6 @@ pub struct InstallationResult {
     pub sdkman_dir: String,
     pub message: String,
     pub shell_restart_required: bool,
-    pub rc_files_updated: bool,
 }
 
 impl SdkmanInstallation {
@@ -59,17 +38,7 @@ impl SdkmanInstallation {
         let init_script = dir.join("bin/sdkman-init.sh");
         let is_installed = init_script.exists();
 
-        let versions = if is_installed {
-            read_version_from_metadata(&dir).await.ok()
-        } else {
-            None
-        };
-
-        Ok(Self {
-            dir,
-            is_installed,
-            versions,
-        })
+        Ok(Self { dir, is_installed })
     }
 
     /// Install SDKMAN! using official installer
@@ -79,71 +48,39 @@ impl SdkmanInstallation {
     ) -> Result<InstallationResult, SdkmanError> {
         info!("Starting SDKMAN! installation process");
 
-        // 1. Detect platform and reject native Windows (CMD/PowerShell)
+        // 1. Check platform compatibility (validate platform triple)
         check_platform_compatibility().await?;
 
-        // 2. Check if already installed
+        // 2. Check bash availability
+        check_bash_available().await?;
+
+        // 3. Check if already installed
         let installation = Self::detect().await?;
         if installation.is_installed {
-            let version_str = installation
-                .versions
-                .as_ref()
-                .map(|v| v.display())
-                .unwrap_or_else(|| "unknown".to_string());
             info!("SDKMAN! already installed at {:?}", installation.dir);
             return Ok(InstallationResult {
                 installed: true,
                 sdkman_dir: installation.dir.display().to_string(),
-                message: format!(
-                    "SDKMAN! is already installed at {} (version: {})",
-                    installation.dir.display(),
-                    version_str
-                ),
+                message: format!("SDKMAN! is already installed at {}", installation.dir.display()),
                 shell_restart_required: false,
-                rc_files_updated: false,
             });
-        }
-
-        // 3. Check if RC files are writable
-        let rc_files_readonly = check_rc_files_readonly().await;
-        let can_update_rc = update_rc_files && !rc_files_readonly;
-
-        if rc_files_readonly && update_rc_files {
-            warn!("Shell RC files are read-only, will skip RC file updates");
         }
 
         // 4. Download installer from https://get.sdkman.io
         let install_url = installer_url.unwrap_or_else(|| DEFAULT_INSTALLER_URL.to_string());
-        // Add rcupdate=false query parameter if we're not updating RC files
-        let install_url_with_params = if !can_update_rc {
-            format!("{}?rcupdate=false", install_url)
-        } else {
-            install_url
-        };
-        let installer_script = download_installer(&install_url_with_params).await?;
+        let install_url_with_rcupdate = format!("{}?rcupdate={}", install_url, update_rc_files);
+        let installer_script = download_installer(&install_url_with_rcupdate).await?;
 
-        // 5. Execute with appropriate flags
-        execute_installer(&installer_script, can_update_rc).await?;
+        // 5. Execute installer
+        execute_installer(&installer_script, update_rc_files).await?;
 
         // 6. Verify installation succeeded
         verify_installation(&installation.dir).await?;
 
         // 7. Return result with paths and instructions
-        // Note: SDKMAN! officially supports bash and zsh. The detect_shell() function will
-        // return the detected shell name, but SDKMAN! initialization works via sourcing
-        // .bashrc/.zshrc, so only POSIX-compatible shells that source these files will work.
-        let message = if can_update_rc {
-            let shell = detect_shell();
+        let message = if update_rc_files {
             format!(
-                "SDKMAN! installed successfully at {}. Shell configuration updated for {}. Please restart your terminal or run: source {}/bin/sdkman-init.sh",
-                installation.dir.display(),
-                shell,
-                installation.dir.display()
-            )
-        } else if rc_files_readonly {
-            format!(
-                "SDKMAN! installed successfully at {}. Shell RC files are read-only (e.g., NixOS). Add this to your shell profile manually: [ -f {}/bin/sdkman-init.sh ] && source {}/bin/sdkman-init.sh",
-                installation.dir.display(),
+                "SDKMAN! installed successfully at {}. Shell configuration updated. Please restart your terminal or run: source {}/bin/sdkman-init.sh",
                 installation.dir.display(),
                 installation.dir.display()
             )
@@ -162,48 +99,9 @@ impl SdkmanInstallation {
             installed: true,
             sdkman_dir: installation.dir.display().to_string(),
             message,
-            shell_restart_required: can_update_rc,
-            rc_files_updated: can_update_rc,
+            shell_restart_required: update_rc_files,
         })
     }
-}
-
-/// Read version from SDKMAN! metadata
-async fn read_version_from_metadata(dir: &Path) -> Result<SdkmanVersions, SdkmanError> {
-    let script_version_file = dir.join("var/version");
-    let native_version_file = dir.join("var/version_native");
-
-    // Script version is required
-    let script_version = if script_version_file.exists() {
-        fs::read_to_string(&script_version_file)
-            .await
-            .map(|content| content.trim().to_string())
-            .map_err(|e| {
-                SdkmanError::Internal(format!("Failed to read script version file: {}", e))
-            })?
-    } else {
-        return Err(SdkmanError::Internal(
-            "Script version file not found".to_string(),
-        ));
-    };
-
-    // Native version is optional
-    let native_version = if native_version_file.exists() {
-        match fs::read_to_string(&native_version_file).await {
-            Ok(content) => Some(content.trim().to_string()),
-            Err(e) => {
-                debug!("Failed to read native version file: {}", e);
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    Ok(SdkmanVersions {
-        script_version,
-        native_version,
-    })
 }
 
 /// Download installer script with retry logic

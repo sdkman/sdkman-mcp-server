@@ -1,14 +1,12 @@
-mod error;
-mod fs_helpers;
+mod utils;
 mod installation;
-mod platform;
-mod shell;
 mod versions;
 
-use error::{
-    SdkmanError, INTERNAL_ERROR_CODE, NETWORK_ERROR_CODE, PERMISSION_ERROR_CODE,
-    SDKMAN_NOT_INSTALLED_CODE, UNSUPPORTED_PLATFORM_CODE,
+use utils::error::{
+    SdkmanError, BASH_NOT_AVAILABLE_CODE, INTERNAL_ERROR_CODE, NETWORK_ERROR_CODE,
+    PERMISSION_ERROR_CODE, SDKMAN_NOT_INSTALLED_CODE, UNSUPPORTED_PLATFORM_CODE,
 };
+use utils::shell::check_rc_files_readonly;
 use installation::SdkmanInstallation;
 use rmcp::{
     handler::server::tool::ToolRouter, model::*, tool, tool_handler, tool_router,
@@ -72,8 +70,7 @@ impl SdkmanServer {
     async fn install_sdkman(&self) -> Result<CallToolResult, McpError> {
         info!("Tool call: install_sdkman");
 
-        // Default to updating RC files
-        let update_rc_files = true;
+        let update_rc_files = !check_rc_files_readonly().await;
 
         match SdkmanInstallation::install(update_rc_files, None).await {
             Ok(result) => {
@@ -99,6 +96,17 @@ impl SdkmanServer {
                             message: Cow::Borrowed(
                                 "SDKMAN! installation not supported on native Windows",
                             ),
+                            data: Some(error_data),
+                        })
+                    }
+                    SdkmanError::BashNotAvailable { details, recovery } => {
+                        let error_data = serde_json::json!({
+                            "details": details,
+                            "recovery": recovery
+                        });
+                        Err(McpError {
+                            code: ErrorCode(BASH_NOT_AVAILABLE_CODE),
+                            message: Cow::Borrowed("Bash shell not available"),
                             data: Some(error_data),
                         })
                     }

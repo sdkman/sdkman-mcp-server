@@ -4,6 +4,7 @@ use thiserror::Error;
 pub const SDKMAN_NOT_INSTALLED_CODE: i32 = -40001;
 pub const INTERNAL_ERROR_CODE: i32 = -32603;
 pub const UNSUPPORTED_PLATFORM_CODE: i32 = -1000;
+pub const BASH_NOT_AVAILABLE_CODE: i32 = -1001;
 pub const NETWORK_ERROR_CODE: i32 = -1002;
 pub const PERMISSION_ERROR_CODE: i32 = -1003;
 
@@ -13,8 +14,11 @@ pub enum SdkmanError {
     #[error("SDKMAN! not installed")]
     NotInstalled { checked_paths: Vec<String> },
 
-    #[error("SDKMAN! installation not supported on native Windows")]
+    #[error("Unsupported platform: {details}")]
     UnsupportedPlatform { details: String, recovery: String },
+
+    #[error("Bash shell not available: {details}")]
+    BashNotAvailable { details: String, recovery: String },
 
     #[error("Failed to download SDKMAN! installer: {details}")]
     NetworkError { details: String, recovery: String },
