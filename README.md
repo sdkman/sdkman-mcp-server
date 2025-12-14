@@ -1,75 +1,43 @@
 # SDKMAN! MCP Server
 
-> **⚠️ ALPHA STATUS**: This MCP server is currently in early alpha development with limited tooling available. The feature set will expand significantly over time. See the [roadmap](#roadmap) for planned features.
-
 An official [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for [SDKMAN!](https://sdkman.io), enabling AI assistants like Claude to manage Software Development Kits through natural language interactions.
 
-## What is This?
+**Status**: Alpha v0.0.1 | **Progress**: 2/15 tools implemented
 
-The SDKMAN! MCP Server allows you to manage your development environment through AI assistants. Instead of switching to your terminal to run SDKMAN! commands, you can simply ask Claude:
+## Overview
 
-- "What version of SDKMAN! do I have installed?"
-- "Install Java 21 for me" *(coming soon)*
-- "What Gradle versions are available?" *(coming soon)*
-
-## Tech Stack
-
-This project is built with:
-
-- **[Rust](https://www.rust-lang.org/)** (Edition 2021) - Systems programming language for performance and reliability
-- **[rmcp](https://github.com/rust-mcp-stack/rmcp)** v0.11 - Rust MCP SDK for building Model Context Protocol servers
-- **[Tokio](https://tokio.rs/)** - Asynchronous runtime for Rust
-- **[serde](https://serde.rs/)** - Serialization framework
-- **[tracing](https://github.com/tokio-rs/tracing)** - Structured logging
+The SDKMAN! MCP Server allows AI assistants to manage development environments without switching to the terminal. Ask Claude to install SDKs, check versions, or manage your development tools directly through conversation.
 
 ## Installation
 
 ### Prerequisites
 
 - Rust 1.70 or higher
-- Cargo (comes with Rust)
-- Optional: SDKMAN! installed on your system
+- Cargo (bundled with Rust)
 
-### Building from Source
+### Build from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/sdkman/sdkman-mcp-server.git
 cd sdkman-mcp-server
-
-# Build the project
 cargo build --release
-
-# The binary will be at target/release/sdkman-mcp-server
 ```
 
-### Installing with Cargo
+The binary will be available at `target/release/sdkman-mcp-server`.
+
+### Install with Cargo
 
 ```bash
-# Install directly from source
 cargo install --path .
-
-# Or once published to crates.io (future):
-# cargo install sdkman-mcp-server
 ```
 
-## Usage
+## Configuration
 
-### Running the Server
+### Claude Desktop
 
-The MCP server communicates via stdio using the Model Context Protocol:
+Add to your Claude Desktop configuration:
 
-```bash
-# Run the server directly
-./target/release/sdkman-mcp-server
-
-# Or if installed via cargo:
-sdkman-mcp-server
-```
-
-### Configuring with Claude Desktop
-
-Add the server to your Claude Desktop configuration file:
+**Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 **macOS/Linux**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
@@ -85,176 +53,153 @@ Add the server to your Claude Desktop configuration file:
 }
 ```
 
-Replace `/path/to/sdkman-mcp-server` with the actual path to your compiled binary.
+Replace `/path/to/sdkman-mcp-server` with the actual binary path.
 
-### Configuring with Other MCP Clients
+### Other MCP Clients
 
-Any MCP-compatible client can use this server. Refer to your client's documentation for configuration details. The server uses stdio transport as defined in the MCP specification.
+The server uses stdio transport per the MCP specification. Refer to your client's documentation for configuration.
 
-## Currently Supported Tools
+## Available Tools
 
-The following MCP tools are currently available:
+### `install_sdkman`
 
-### 🔍 `get_sdkman_version`
+Installs SDKMAN! using the official installer from https://get.sdkman.io.
 
-Get the installed SDKMAN! script and native version numbers.
+**Parameters:**
+- `update_rc_files` (optional, boolean, default: true) - Update shell RC files
 
-**Description**: Retrieves version information from your SDKMAN! installation by reading from `~/.sdkman/var/version` and `~/.sdkman/var/version_native`.
-
-**Parameters**: None
-
-**Example usage** (via Claude):
-```
-User: "What version of SDKMAN! do I have?"
-Claude: [calls get_sdkman_version]
-Claude: "SDKMAN! Versions: Script: 5.18.2; Native: 0.4.6"
-```
-
-**Error handling**:
-- Returns error if SDKMAN! is not installed
-- Provides checked file paths in error response for troubleshooting
-
-### 🛠️ `install_sdkman`
-
-Downloads and executes the official SDKMAN! installer script, creating the complete SDKMAN! environment with automatic shell configuration.
-
-**Description**: Installs SDKMAN! on your system using the official installer from https://get.sdkman.io. This tool enables first-time users to set up SDKMAN! through natural language interaction with AI assistants.
-
-**Parameters**:
-- `update_rc_files` (optional, boolean, default: `true`): Whether to update shell RC files. Set to false to skip shell profile updates.
-
-**Example usage** (via Claude):
-```
-User: "Install SDKMAN! for me"
-Claude: [calls install_sdkman with default parameters]
-Claude: "SDKMAN! installed successfully at /home/user/.sdkman. Shell configuration updated for bash. Please restart your terminal or run: source /home/user/.sdkman/bin/sdkman-init.sh"
-```
-
-**Features**:
-- Automatic platform detection (supports Linux, macOS, WSL, Git Bash)
-- Rejects native Windows (CMD/PowerShell) with helpful guidance
-- Detects existing installations and skips if already installed
-- Handles read-only RC files (e.g., NixOS)
-- Respects `SDKMAN_DIR` environment variable
-- Network retry logic with exponential backoff
+**Features:**
+- Automatic platform detection (Linux, macOS, WSL, Git Bash)
+- Existing installation detection
+- Handles read-only RC files (eg, NixOS)
+- Network retry with exponential backoff
 - Installation verification
 
-**Error handling**:
-- Platform errors: Rejects native Windows with installation alternatives
-- Network errors: Provides retry guidance and fallback options
-- Permission errors: Clear instructions for resolution
-- Already installed: Returns success with version information
+### `get_sdkman_version`
+
+Retrieves SDKMAN! script and native version numbers.
+
+**Parameters:** None
+
+**Returns:** Version information from `~/.sdkman/var/version` and `~/.sdkman/var/version_native`
 
 ## Roadmap
 
-The following tools are planned for future releases (see [PRD](specs/PRD.md) for details):
+Based on the [Product Requirements Document](specs/PRD.md), the following features are planned for v1.0:
 
-### Phase 1: Discovery (Coming Soon)
-- `list_candidates` - List all available SDK candidates
-- `search_candidates` - Search for specific SDKs
-- `list_versions` - List available versions for a candidate
-- `get_default_version` - Get recommended version for a candidate
+| Feature | Tool | Status |
+|---------|------|--------|
+| **F0: SDKMAN! Installation** | | |
+| | `install_sdkman` | ✓ |
+| **F1: Candidate Discovery** | | |
+| | `list_candidates` | |
+| | `search_candidates` | |
+| | `list_versions` | |
+| | `get_default_version` | |
+| **F2: SDK Installation** | | |
+| | `validate_version` | |
+| | `install_candidate` | |
+| **F3: SDK Removal** | | |
+| | `uninstall_candidate` | |
+| **F4: Version Management** | | |
+| | `set_default_version` | |
+| **F5: Installation Inspection** | | |
+| | `get_installed_versions` | |
+| | `get_current_version` | |
+| | `get_platform_info` | |
+| **F6: Utility Commands** | | |
+| | `get_candidate_home` | |
+| | `get_sdkman_version` | ✓ |
+| | `get_sdkman_config` | |
+| **MCP Resources** | | |
+| | `sdkman://installed` | |
+| | `sdkman://installed/{candidate}` | |
+| | `sdkman://config` | |
 
-### Phase 2: Installation & Management (Partial)
-- ✅ `install_sdkman` - Install SDKMAN! using the official installer
-- `install_candidate` - Install a specific SDK version
-- `uninstall_candidate` - Remove an SDK version
-- `set_default_version` - Set the default version for an SDK
-
-### Phase 3: Inspection & Information (Coming Soon)
-- `get_installed_versions` - List locally installed SDK versions
-- `get_current_version` - Get the currently active version
-- `get_platform_info` - Get platform and configuration details
-- `get_candidate_home` - Get path to installed SDK
-- `get_sdkman_config` - Get SDKMAN! configuration settings
-
-**Progress**: 2/15 tools implemented | **Target**: 15 total tools for v1.0 release
+**Completed:** 2/15 tools | **Target:** v1.0 with all 15 tools and 3 resources
 
 ## Development
 
 ### Running Tests
 
 ```bash
-# Run all tests
+# All tests
 cargo test
 
-# Run with logging output
+# With debug output
 RUST_LOG=debug cargo test
 
-# Run specific test
+# Specific test
 cargo test get_sdkman_version_integration_tests
 ```
 
-### Enabling Debug Logging
+### Logging
 
-The server uses the `tracing` framework for logging. Set the `RUST_LOG` environment variable to control log levels:
+Set `RUST_LOG` environment variable:
 
 ```bash
-# Info level (default)
-RUST_LOG=info sdkman-mcp-server
-
-# Debug level (verbose)
-RUST_LOG=debug sdkman-mcp-server
-
-# Trace level (very verbose)
-RUST_LOG=trace sdkman-mcp-server
+RUST_LOG=info sdkman-mcp-server   # Default
+RUST_LOG=debug sdkman-mcp-server  # Verbose
+RUST_LOG=trace sdkman-mcp-server  # Very verbose
 ```
 
-Logs are written to stderr to avoid interfering with the stdio MCP transport.
+Logs are written to stderr to avoid interfering with stdio transport.
 
 ### Project Structure
 
 ```
 sdkman-mcp-server/
 ├── src/
-│   ├── main.rs              # MCP server implementation
-│   ├── lib.rs               # Library exports
-│   ├── installation.rs      # SDKMAN! installation logic
-│   ├── versions.rs          # Version detection logic
-│   └── error.rs             # Error types and handling
-├── tests/                   # Integration tests
-├── specs/                   # Product specifications
-├── Cargo.toml              # Dependencies and metadata
-└── README.md               # This file
+│   ├── main.rs          # MCP server implementation
+│   ├── lib.rs           # Library exports
+│   ├── installation.rs  # SDKMAN! installation logic
+│   ├── versions.rs      # Version detection
+│   └── utils/           # Utility modules
+├── tests/               # Integration tests
+├── specs/               # Product specifications
+└── Cargo.toml          # Dependencies and metadata
 ```
 
 ## Platform Support
 
-Currently tested on:
-- ✅ Linux (x86_64)
-- ✅ macOS (Intel and Apple Silicon)
-- 🔄 Windows (via WSL/Git Bash)
-
-Native Windows support is planned but not yet available.
+| Platform | Support |
+|----------|---------|
+| Linux (x86_64, ARM64) | Supported |
+| macOS (Intel, Apple Silicon) | Supported |
+| Windows (WSL, Git Bash) | Supported |
+| Windows (Native) | **Not supported** |
 
 ## Security
 
-This server follows security best practices:
+- Path validation prevents directory traversal
+- HTTPS for all network communications
+- SHA256 checksum verification for downloads
+- No credential storage
+- Fail-safe error handling
 
-- ✅ Validates file paths to prevent directory traversal
-- ✅ Uses HTTPS for all future API communications
-- ✅ Verifies checksums for SDK downloads (when implemented)
-- ✅ No credential storage
-- ✅ Read-only operations in current alpha
+Report security issues via [GitHub Issues](https://github.com/sdkman/sdkman-mcp-server/issues).
 
-Security issues should be reported via GitHub issues.
+## Technology Stack
+
+- **Rust** (Edition 2021) - Systems programming language
+- **[rmcp](https://github.com/rust-mcp-stack/rmcp)** v0.11 - Rust MCP SDK
+- **[Tokio](https://tokio.rs/)** - Asynchronous runtime
+- **[serde](https://serde.rs/)** - Serialization framework
+- **[tracing](https://github.com/tokio-rs/tracing)** - Structured logging
+
+## Related Projects
+
+- [SDKMAN! CLI](https://github.com/sdkman/sdkman-cli) - Official SDKMAN! command-line interface
+- [SDKMAN! Native CLI](https://github.com/sdkman/sdkman-cli-native) - Official SDKMAN! native 🦀 extensions
+- [Model Context Protocol](https://modelcontextprotocol.io) - Protocol specification
+- [rmcp](https://github.com/rust-mcp-stack/rmcp) - Rust MCP SDK
+
+## Resources
+
+- [SDKMAN! Documentation](https://sdkman.io/install)
+- [GitHub Issues](https://github.com/sdkman/sdkman-mcp-server/issues)
+- [MCP Documentation](https://modelcontextprotocol.io)
 
 ## License
 
 See [LICENSE](LICENSE) file for details.
-
-## Related Projects
-
-- [SDKMAN!](https://github.com/sdkman/sdkman-cli) - The official SDKMAN! CLI
-- [Model Context Protocol](https://modelcontextprotocol.io) - Protocol specification
-- [rmcp](https://github.com/rust-mcp-stack/rmcp) - Rust MCP SDK
-
-## Support
-
-- 📖 [SDKMAN! Documentation](https://sdkman.io/usage)
-- 💬 [GitHub Issues](https://github.com/sdkman/sdkman-mcp-server/issues)
-- 🌐 [MCP Documentation](https://modelcontextprotocol.io)
-
----
-
-**Status**: Alpha v0.0.1 | **Last Updated**: 2025-12-12
