@@ -1,0 +1,67 @@
+name: Notify Chloé (Comment Poll)
+
+on:
+  schedule:
+    - cron: '45 * * * *'  # Every hour at :45 — staggered across repos
+  workflow_dispatch:        # Manual trigger for testing
+
+jobs:
+  poll-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll for new issue comments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOOK_URL: ${{ secrets.OPENCLAW_HOOK_URL }}
+          HOOK_TOKEN: ${{ secrets.OPENCLAW_HOOK_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          SINCE=$(date -u -d '70 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          echo "Polling ${REPO} for issue comments since ${SINCE}"
+
+          # Fetch recent comments, filter out bots
+          COMMENTS=$(gh api \
+            "/repos/${REPO}/issues/comments?since=${SINCE}&per_page=100&sort=created&direction=asc" \
+            --jq '[.[] | select(.user.type != "Bot")]')
+
+          COUNT=$(echo "$COMMENTS" | jq 'length')
+          echo "Found ${COUNT} new human comment(s)"
+
+          if [ "$COUNT" -eq 0 ]; then
+            exit 0
+          fi
+
+          for i in $(seq 0 $((COUNT - 1))); do
+            COMMENT=$(echo "$COMMENTS" | jq ".[$i]")
+
+            USER=$(echo "$COMMENT" | jq -r '.user.login')
+            BODY=$(echo "$COMMENT" | jq -r '.body' | head -c 1000)
+            HTML_URL=$(echo "$COMMENT" | jq -r '.html_url')
+            ISSUE_API_URL=$(echo "$COMMENT" | jq -r '.issue_url')
+            CREATED_AT=$(echo "$COMMENT" | jq -r '.created_at')
+
+            # Extract issue number from comment URL
+            ISSUE_NUM=$(echo "$HTML_URL" | grep -oE '/issues/[0-9]+' | grep -oE '[0-9]+')
+
+            # Fetch issue title
+            ISSUE_TITLE=$(gh api "$ISSUE_API_URL" --jq '.title')
+
+            MSG="New comment on ${REPO} — #${ISSUE_NUM}: ${ISSUE_TITLE}"
+            MSG+=$'\nFrom: '"${USER}"
+            MSG+=$'\nPosted: '"${CREATED_AT}"
+            MSG+=$'\nURL: '"${HTML_URL}"
+            MSG+=$'\n\n'"${BODY}"
+
+            PAYLOAD=$(jq -n \
+              --arg message "$MSG" \
+              --arg name "GitHub Comment Triage" \
+              '{message: $message, name: $name, deliver: true, channel: "discord", to: "1474759623209783327"}')
+
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${HOOK_URL}" \
+              -H "Authorization: Bearer ${HOOK_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD")
+
+            echo "Comment by @${USER} on #${ISSUE_NUM} → HTTP ${HTTP_CODE}"
+          done
